@@ -21,9 +21,10 @@ def process_dataset(dataset, csvfile, embedder):
     
     """
     with open(csvfile, 'w') as outhandle:
-        for i, (tokens, flags) in enumerate(dataset):
-            if i < 40000 and len(tokens) > 0:
-                print(i)
+        for i, (tokens, flags) in enumerate(dataset):            
+            if i % 100 == 0:
+                print('processed {} sentences'.format(i))
+            if len(tokens) > 0:
                 vec = embedder(tokens, flags)
                 df = pd.DataFrame(vec.detach().numpy())
                 outhandle.write(df.to_csv(header=False, index=False))    
