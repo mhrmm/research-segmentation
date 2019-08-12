@@ -58,7 +58,48 @@ def train_from_csv(train_csv, dev_csv):
     print('loading dev')
     dev = torch.tensor(pd.read_csv(dev_csv).values).float()
     print('dev size: {}'.format(dev.shape[0]))
-    return create_and_train_net(train, dev)
+    net = create_and_train_net(train, dev)
+    net.eval()
+    return net
+
+def segment_test_file(model, embedder, test_file, 
+                      output_filename = 'result.txt'):
+    characters = open(test_file).read()   
+    characters = [ch for ch in characters if ch != ' ']
+    x_list = read_from_testing_data(test_file)    
+    output = open(output_filename, "w+")
+    sentence_id = 0
+    token_id = 0
+    character_id = 0
+    for j, tokens in enumerate(x_list):
+        if j % 100 == 0:
+            print('{}/{}'.format(j, len(x_list)))
+        x_tensor = embedder(tokens, [-1 for _ in range(len(tokens))])
+        x_tensor = x_tensor[:,1:]
+        z = model(x_tensor)
+
+        for i, tok in enumerate(tokens):
+            # if this is the last token:
+            if i == len(tokens) - 1:
+                output.write(characters[character_id])
+                output.write("  ")
+                if characters[character_id + 1] == '\n':
+                    output.write("\n")
+                    character_id += 1
+                token_id = 0
+                sentence_id += 1
+                character_id += 1
+            else:
+                output.write(characters[character_id])
+            
+                if z[i].argmax().item() == 1:
+                    output.write("  ")
+                token_id += 1
+                character_id += 1
+    if character_id < len(characters):
+        output.write(characters[character_id])
+    output.write("  \n")
+    output.close()    
 
 
 def train_and_eval_from_csv(training_csv, dev_csv, embedder, 

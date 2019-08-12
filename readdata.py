@@ -68,15 +68,16 @@ def read_from_testing_data(filename):
     sentence_cnt = 0
     x_list = [[]]
     for i in range(len(characters)):
-        if characters[i] == '\n':
-            if not len(x_list[sentence_cnt]) == 0:
+        if not characters[i] == ' ':
+            if characters[i] == '\n':
+                if not len(x_list[sentence_cnt]) == 0:
+                    sentence_cnt += 1
+                    x_list.append([])
+                continue
+            x_list[sentence_cnt].append(characters[i])
+            if characters[i] == '。' or characters[i] == '！' or characters[i] == '；':
                 sentence_cnt += 1
                 x_list.append([])
-            continue
-        x_list[sentence_cnt].append(characters[i])
-        if characters[i] == '。' or characters[i] == '！' or characters[i] == '；':
-            sentence_cnt += 1
-            x_list.append([])
     x_list = [x for x in x_list if len(x) > 0]
     return x_list
 
