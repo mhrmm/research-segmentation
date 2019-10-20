@@ -3,7 +3,7 @@ import random
 from util import cudaify, clear_cuda
 from transformers import BertTokenizer, BertModel
 from networks import DropoutClassifier
-from readdata import read_from_training_data
+from readdata import read_from_training_data, read_from_testing_data
 
 
 class BertForWordSegmentation(torch.nn.Module):
@@ -87,7 +87,48 @@ def train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate,
         clear_cuda()
     if do_save:
         torch.save(best_model, save_path)
+    return best_model
 
+
+
+def segment_test_file(model, test_file, 
+                      output_filename = 'result.txt'):
+    characters = open(test_file).read()   
+    characters = [ch for ch in characters if ch != ' ']
+    x_list = read_from_testing_data(test_file)    
+    output = open(output_filename, "w+")
+    sentence_id = 0
+    token_id = 0
+    character_id = 0
+    for j, tokens in enumerate(x_list):
+        if j % 100 == 0:
+            print('{}/{}'.format(j, len(x_list)))
+        if len(tokens) > 1:
+            z, loss = model(tokens)
+
+        for i, tok in enumerate(tokens):
+            # if this is the last token:
+            if i == len(tokens) - 1:
+                output.write(characters[character_id])
+                output.write("  ")
+                if characters[character_id + 1] == '\n':
+                    output.write("\n")
+                    character_id += 1
+                token_id = 0
+                sentence_id += 1
+                character_id += 1
+            else:
+                output.write(characters[character_id])                
+                if z[i].argmax().item() == 1:
+                    output.write("  ")
+                token_id += 1
+                character_id += 1
+    if character_id < len(characters):
+        output.write(characters[character_id])
+    output.write("  \n")
+    output.close()  
+    
+    
 def character_stream(filename, num_lines):
     with open(filename) as inhandle:
         for i in range(num_lines):
@@ -95,14 +136,22 @@ def character_stream(filename, num_lines):
             for char in line:
                 yield char
         
-def train_2(train_file, dev_file, num_sentences, window_size=2, 
-            num_epochs = 15, learning_rate = 0.005, do_save = True, 
-            save_path = 'FineTuneModel.bin', eliminate_one = True):
+def main(train_file, dev_file, num_sentences, window_size=2, 
+         num_epochs = 15, learning_rate = 0.005, do_save = True, 
+         save_path = 'FineTuneModel.bin', eliminate_one = True):
     
     
     x_train, y_train = read_from_training_data(character_stream(train_file, num_sentences))
     x_dev, y_dev = read_from_training_data(character_stream(dev_file, num_sentences))
     model = BertForWordSegmentation(window_size)
-    train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate, 
-          do_save, save_path, eliminate_one)
+    net = train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate, 
+                do_save, save_path, eliminate_one)
+    segment_test_file(net, dev_file, 'result.txt')
     clear_cuda()
+    
+    
+if __name__ == '__main__':
+    net = main('data/bakeoff/training/pku_training.utf8', 
+               'data/bakeoff/testing/pku_test.utf8',
+               num_sentences = 19000)
+    
