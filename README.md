@@ -15,7 +15,8 @@ there are approximately 1000 sentences to process):
 
     from embed import *
     from readdata import read_from_training_data
-    dataset = read_from_training_data('data/examples/pku_training.train.utf8')
+    dataset = read_from_training_data(open('data/examples/pku_training.train.utf8').read())
+    dataset = zip(dataset[0], dataset[1])
     embedder = GapEmbedder()
     process_dataset(dataset, 'cached/vecs.train.csv', embedder)
     
@@ -25,7 +26,8 @@ We can do the same thing to create a CSV of vector embeddings for a
 small development corpus (again, be advised that for the final step, 
 there are approximately 1200 sentences to process):
 
-    dataset = read_from_training_data('data/examples/pku_training.dev.utf8')
+    dataset = read_from_training_data(open('data/examples/pku_training.dev.utf8').read())
+    dataset = zip(dataset[0], dataset[1])
     process_dataset(dataset, 'cached/vecs.dev.csv', embedder)
  
 ### Training a classifier for segmentation
