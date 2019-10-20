@@ -11,7 +11,7 @@ if MODEL_NAME == 'bert-base-chinese':
     bert_model.eval()
 else:
     tokenizer = BertTokenizer.from_pretrained(MODEL_NAME, do_lower_case = False)
-    bert_model = BertModel.from_pretrained(MODEL_NAME, do_lower_case = False, output_hidden_states=True)
+    bert_model = BertModel.from_pretrained(MODEL_NAME, output_hidden_states=True)
     bert_model.eval()
   
 def process_dataset(dataset, csvfile, embedder):

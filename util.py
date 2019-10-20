@@ -3,12 +3,14 @@ import os
 
 def cudaify(x):
     if torch.cuda.is_available():
-        print("using gpu")
         cuda = torch.device('cuda:2')
         return x.cuda(cuda)
     else: 
-        print("using cpu")
         return x
+    
+def clear_cuda():
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()    
 
 class Cd:
     """Context manager for changing the current working directory"""
