@@ -75,7 +75,7 @@ class BertForWordSegmentation(torch.nn.Module):
     def __init__(self):
         super(BertForWordSegmentation, self).__init__()
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case = False)
-        self.model = BertModel.from_pretrained('bert-base-multilingual-cased', do_lower_case = False, output_hidden_states=True).to('cuda')
+        self.model = BertModel.from_pretrained('bert-base-multilingual-cased', output_hidden_states=True).to('cuda')
         self.classifier = DropoutClassifier(768 * 2, 2).to('cuda')
         
     def forward(self, input_tokens, labels = None):
