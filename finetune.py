@@ -71,9 +71,35 @@ class WideEmbedder(Embedder):
             means.append(mean)
         return torch.unsqueeze(torch.cat(means, 0), 0)
 
-
-
 class BertForWordSegmentation(torch.nn.Module):
+    def __init__(self):
+        super(BertForWordSegmentation, self).__init__()
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased', do_lower_case = False)
+        self.model = BertModel.from_pretrained('bert-base-multilingual-cased', do_lower_case = False, output_hidden_states=True).to('cuda')
+        self.classifier = DropoutClassifier(768 * 2, 2).to('cuda')
+        
+    def forward(self, input_tokens, labels = None):
+        indexed_tokens = self.tokenizer.convert_tokens_to_ids(input_tokens)
+        tokens_tensor = torch.tensor([indexed_tokens]).to('cuda')
+        outputs = self.model(tokens_tensor)
+        pooled_output = outputs[2]
+        processed_list = []
+        assert(len(input_tokens) == pooled_output[0].shape[1])
+        for i in range(len(indexed_tokens) - 1):
+            mean_1 = (pooled_output[0][0][i] + pooled_output[12][0][i]) / 2
+            mean_2 = (pooled_output[0][0][i + 1] + pooled_output[12][0][i + 1]) / 2
+            processed_list.append(torch.unsqueeze(torch.cat((mean_1, mean_2), 0), 0))
+        processed_tensor = torch.cat(processed_list, 0).to('cuda')
+        result = self.classifier(processed_tensor)
+        loss = None
+        if labels is not None:
+            loss_fct = torch.nn.CrossEntropyLoss()
+            y = torch.LongTensor(labels[:(len(labels) - 1)]).to('cuda')
+            loss = loss_fct(result, y)
+        return result, loss
+
+
+class BertForWordSegmentationNew(torch.nn.Module):
     def __init__(self, embedder):
         super(BertForWordSegmentation, self).__init__()
         self.embedder = embedder
@@ -205,7 +231,8 @@ def main(train_file, dev_file, num_sentences, window_size=2,
     BERT_EMBEDDING_WIDTH = 768
     x_train, y_train = read_from_training_data(character_stream(train_file, num_sentences))
     x_dev, y_dev = read_from_training_data(character_stream(dev_file, num_sentences))
-    model = BertForWordSegmentation(GapAverageEmbedder(BERT_EMBEDDING_WIDTH))
+    #model = BertForWordSegmentation(GapAverageEmbedder(BERT_EMBEDDING_WIDTH))
+    model = BertForWordSegmentation()
     net = train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate, 
                 do_save, save_path, eliminate_one)
     segment_test_file(net, dev_file, 'result.txt')
@@ -243,8 +270,9 @@ def prepare_script(model_path, test_file, output_filename = 'FineTune_result.txt
                 if prediction.argmax().item() == 1:
                     output.write("  ")
                 character_id += 1
-        output.write(characters[character_id])
-        character_id += 1
+        if character_id < len(characters):
+            output.write(characters[character_id])
+            character_id += 1
 #       print("space: %d %c" % (character_id, characters[character_id]))
         output.write("  ")
         if characters[character_id] == '\n':
@@ -255,8 +283,7 @@ def prepare_script(model_path, test_file, output_filename = 'FineTune_result.txt
     output.close()    
     
 if __name__ == '__main__':
-    prepare_script('/home/hopkinsm/Projects/research/research-segmentation/FineTuneModel.bin',  '../../research/research-segmentation/data/bakeoff/testing/pku_test.utf8', 'foo.txt')
-    #net = main('data/bakeoff/training/pku_training.utf8', 
-    #           'data/bakeoff/testing/pku_test.utf8',
-    #           num_sentences = 19000)
+    net = main('data/bakeoff/training/pku_training.utf8', 
+               'data/bakeoff/testing/pku_test.utf8',
+               num_sentences = 200, num_epochs=5)
     
