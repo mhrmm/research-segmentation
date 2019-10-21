@@ -224,7 +224,7 @@ def character_stream(filename, num_lines):
             for char in line:
                 yield char
         
-def main(train_file, dev_file, num_sentences, window_size=2, 
+def main(train_file, dev_file, test_file, num_sentences, window_size=2, 
          num_epochs = 15, learning_rate = 0.005, do_save = True, 
          save_path = 'FineTuneModel.bin', eliminate_one = True):
     
@@ -235,7 +235,7 @@ def main(train_file, dev_file, num_sentences, window_size=2,
     model = BertForWordSegmentation()
     net = train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate, 
                 do_save, save_path, eliminate_one)
-    segment_test_file(net, dev_file, 'result.txt')
+    segment_test_file(net, test_file, 'result.txt')
     clear_cuda()
 
 def prepare_script(model_path, test_file, output_filename = 'FineTune_result.txt'):
@@ -284,6 +284,7 @@ def prepare_script(model_path, test_file, output_filename = 'FineTune_result.txt
     
 if __name__ == '__main__':
     net = main('data/bakeoff/training/pku_training.utf8', 
+               'data/bakeoff/gold/pku_test_gold.utf8',               
                'data/bakeoff/testing/pku_test.utf8',
                num_sentences = 200, num_epochs=5)
     
