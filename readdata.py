@@ -3,7 +3,24 @@ from pytorch_transformers import BertTokenizer
 ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 
 
-
+def is_english(character):
+    if 'A' <= character and character <= 'Z':
+        return True
+    if 'Ａ' <= character and character <= 'Ｚ':
+        return True
+    if 'a' <= character and character <= 'z':
+        return True
+    if 'ａ' <= character and character <= 'ｚ':
+        return True
+    if '0' <= character and character <= '9':
+        return True
+    if '０' <= character and character <= '９':
+        return True
+    if character == '○':
+        return True
+    if character == '.' or character == '．' or character == '%' or character == '％':
+        return True
+    return False
 
 
 def read_from_training_data(characters, filter_fn = lambda x: len(x) <= 1):
