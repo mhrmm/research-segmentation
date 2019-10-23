@@ -2,25 +2,54 @@ import nltk
 from pytorch_transformers import BertTokenizer
 ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 
+DEFAULT_LINE_LIMIT = 300
 
-def is_english(character):
-    if 'A' <= character and character <= 'Z':
-        return True
-    if 'Ａ' <= character and character <= 'Ｚ':
-        return True
-    if 'a' <= character and character <= 'z':
-        return True
-    if 'ａ' <= character and character <= 'ｚ':
-        return True
-    if '0' <= character and character <= '9':
-        return True
-    if '０' <= character and character <= '９':
-        return True
-    if character == '○':
-        return True
-    if character == '.' or character == '．' or character == '%' or character == '％':
-        return True
-    return False
+
+
+def read_segmented_string(line):
+    """Specific to XE encoding; obsolete?"""
+    sent = []
+    flags = []
+    line = line.strip() + " "
+    for i in range(len(line)):
+        if not line[i] == ' ':            
+            flags.append((line[i + 1] == ' '))
+            sent.append(line[i])
+    return sent, flags            
+                
+def split_long_string(line, limit):
+    line = ' '.join(line.split())
+    shorter = []
+    while len(line) > limit:
+        period_index = line[:limit].rfind('。')
+        if period_index != -1:
+            shorter.append(line[:period_index+1].strip())
+            line = line[period_index+1:]
+        else:
+            shorter.append(line[:limit].strip())
+            line = line[limit:]
+    if len(line) > 0:
+        shorter.append(line.strip())
+    return shorter
+
+def read_train_data(lines, encoding, limit=DEFAULT_LINE_LIMIT):
+    sents = []
+    flagsets = []
+    for line in lines:
+        shortlines = split_long_string(line, limit)
+        for shortline in shortlines:
+            if len(shortline) > 1:
+                sent, flagset = encoding.encode(shortline)
+                sents.append(sent)
+                flagsets.append(flagset)
+    return sents, flagsets
+            
+def read_test_data(lines, limit=DEFAULT_LINE_LIMIT):
+    sents = []
+    for line in lines:
+        shortlines = split_long_string(line, limit)
+        sents.append(shortlines)        
+    return sents
 
 
 def read_from_training_data(characters, filter_fn = lambda x: len(x) <= 1):
@@ -43,12 +72,8 @@ def read_from_training_data(characters, filter_fn = lambda x: len(x) <= 1):
     sentence_cnt = 0
     x_list = [[]]
     y_list = [[]]
-    alpha_count = 0
     for i in range(len(characters)):
-        if not characters[i] == ' ':
-            if characters[i] in ALPHABET:
-                alpha_count += 1
-                
+        if not characters[i] == ' ':                
             if characters[i] == '\n':
                 if not len(x_list[sentence_cnt]) == 0:
                     sentence_cnt += 1
@@ -72,7 +97,7 @@ def read_from_training_data(characters, filter_fn = lambda x: len(x) <= 1):
     return sents, flags
 
  
-def read_from_testing_data(filename):
+def read_from_testing_data(characters):
     """
     Reads a file containing untokenized Chinese plaintext. 
     
@@ -83,7 +108,7 @@ def read_from_testing_data(filename):
     exclamation points, and semicolons.  
     
     """    
-    characters = open(filename).read()
+    #characters = open(filename).read()
     sentence_cnt = 0
     x_list = [[]]
     for i in range(len(characters)):
