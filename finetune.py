@@ -194,7 +194,7 @@ def main(train_file, dev_file, test_file):
         x_dev, y_dev = read_train_data(line_stream(dev_file, num_sentences), XE())
         net = train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate, 
                     model_file)
-        segment_file(net.segmenter(), test_file, text_output_file)
+        segment_file(net.segmenter(), XE(), test_file, text_output_file)
         clear_cuda()
 
     BERT_EMBEDDING_WIDTH = 768
