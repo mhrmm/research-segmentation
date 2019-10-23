@@ -1,4 +1,6 @@
+*.bin
 *__pycache__*
 data
 aux
 cached
+*.DS_Store*
