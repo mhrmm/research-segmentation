@@ -3,8 +3,8 @@ import random
 from util import cudaify, clear_cuda
 from transformers import BertTokenizer, BertModel
 from networks import DropoutClassifier
-from readdata import read_train_data
-from segmenter import segment_file, XE
+from readdata import read_train_data, read_from_testing_data
+from segmenter import segment_file, XE, BMES
 
 class Embedder:
 
@@ -75,13 +75,13 @@ class WideEmbedder(Embedder):
 
 
 class BertForWordSegmentation(torch.nn.Module):
-    def __init__(self, embedder, encoder, bert_model = 'bert-base-multilingual-cased'):
+    def __init__(self, embedder, encoding, bert_model = 'bert-base-multilingual-cased'):
         super(BertForWordSegmentation, self).__init__()
         self.embedder = embedder
-        self.encoder = encoder
+        self.encoding = encoding
         self.tokenizer = BertTokenizer.from_pretrained(bert_model, do_lower_case = False)
         self.model = cudaify(BertModel.from_pretrained(bert_model, output_hidden_states=True))
-        self.classifier = cudaify(DropoutClassifier(self.embedder.embedding_width(), self.encoder.domain_size()))
+        self.classifier = cudaify(DropoutClassifier(self.embedder.embedding_width(), self.encoding.domain_size()))
         
     def forward(self, input_tokens, labels = None):
         bert_tokens = []
@@ -111,7 +111,7 @@ class BertForWordSegmentation(torch.nn.Module):
             flags = []
             for i in range(len(z)):
                 flags.append(z[i].argmax().item())                
-            flags.append(self.encoder.terminator())
+            flags.append(self.encoding.terminator())
             return flags
         return segment
                 
@@ -164,15 +164,43 @@ def train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate,
     return best_model
 
 
+def segment_test_file(model, test_file, 
+                      output_filename = 'result.txt'):
+    characters = open(test_file).read()   
+    characters = [ch for ch in characters if ch != ' ']
+    x_list = read_from_testing_data(test_file)    
+    output = open(output_filename, "w+")
+    sentence_id = 0
+    token_id = 0
+    character_id = 0
+    for j, tokens in enumerate(x_list):
+        if j % 100 == 0:
+            print('{}/{}'.format(j, len(x_list)))
+        if len(tokens) > 1:
+            z, loss = model(tokens)
 
-"""  
-def character_stream(filename, num_lines):
-    with open(filename) as inhandle:
-        for i in range(num_lines):
-            line = inhandle.readline()
-            for char in line:
-                yield char
-"""
+        for i, tok in enumerate(tokens):
+            # if this is the last token:
+            if i == len(tokens) - 1:
+                output.write(characters[character_id])
+                output.write("  ")
+                if characters[character_id + 1] == '\n':
+                    output.write("\n")
+                    character_id += 1
+                token_id = 0
+                sentence_id += 1
+                character_id += 1
+            else:
+                output.write(characters[character_id])                
+                if z[i].argmax().item() == 1:
+                    output.write("  ")
+                token_id += 1
+                character_id += 1
+    if character_id < len(characters):
+        output.write(characters[character_id])
+    output.write("  \n")
+    output.close()  
+    
 
 def line_stream(filename, num_lines):
     with open(filename) as inhandle:
@@ -184,53 +212,74 @@ def main(train_file, dev_file, test_file):
    
     def run_experiment(num_sentences, 
                        text_output_file,
-                       model,
+                       embedder,
+                       encoding,
                        model_file = 'FineTuneModel.bin', 
                        num_epochs = 15, 
                        learning_rate = 0.005):
             
-        
-        x_train, y_train = read_train_data(line_stream(train_file, num_sentences), XE())
-        x_dev, y_dev = read_train_data(line_stream(dev_file, num_sentences), XE())
+        model = BertForWordSegmentation(embedder, encoding)
+        x_train, y_train = read_train_data(line_stream(train_file, num_sentences), encoding)
+        x_dev, y_dev = read_train_data(line_stream(dev_file, num_sentences), encoding)
         net = train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate, 
                     model_file)
-        segment_file(net.segmenter(), XE(), test_file, text_output_file)
+        #segment_file(net, test_file, text_output_file)
+        segment_test_file(net, test_file)
         clear_cuda()
 
     BERT_EMBEDDING_WIDTH = 768
-    run_experiment(100, 'result.txt', 
-                   BertForWordSegmentation(GapEmbedder(BERT_EMBEDDING_WIDTH), XE()),
+    run_experiment(2000, 'result.txt', 
+                   GapEmbedder(BERT_EMBEDDING_WIDTH),
+                   XE(),
                    model_file = None,
                    num_epochs = 10)
-    run_experiment(19000, 'gap.19k.txt', 
-                   BertForWordSegmentation(GapEmbedder(BERT_EMBEDDING_WIDTH), XE()),
-                   model_file = 'gap.19k.bin',
-                   num_epochs = 10)                   
-    
     """
-    run_experiment(19000, 'simple.19k.txt', 
-                   BertForWordSegmentation(SimpleEmbedder(BERT_EMBEDDING_WIDTH)),
-                   model_file = 'simple.19k.bin',
+    run_experiment(18500, 'gap.19k.xe.txt', 
+                   GapEmbedder(BERT_EMBEDDING_WIDTH),
+                   XE(),
+                   model_file = 'gap.19k.xe.bin',
+                   num_epochs = 10)                   
+    run_experiment(18500, 'gap.19k.bmes.txt', 
+                   GapEmbedder(BERT_EMBEDDING_WIDTH),
+                   BMES(),
+                   model_file = 'gap.19k.bmes.bin',
+                   num_epochs = 10)                   
+    run_experiment(18500, 'wide.19k.xe.txt', 
+                   WideEmbedder(BERT_EMBEDDING_WIDTH),
+                   XE(),
+                   model_file = 'wide.19k.xe.bin',
+                   num_epochs = 10)                   
+    run_experiment(18500, 'wide.19k.bmes.txt', 
+                   WideEmbedder(BERT_EMBEDDING_WIDTH),
+                   BMES(),
+                   model_file = 'wide.19k.bmes.bin',
+                   num_epochs = 10)                   
+    run_experiment(18500, 'simple.19k.xe.txt', 
+                   SimpleEmbedder(BERT_EMBEDDING_WIDTH),
+                   XE(),
+                   model_file = 'simple.19k.xe.bin',
                    num_epochs = 10)
-    run_experiment(19000, 'gap.19k.txt', 
-                   BertForWordSegmentation(GapEmbedder(BERT_EMBEDDING_WIDTH)),
-                   model_file = 'gap.19k.bin',
+    run_experiment(18500, 'simple.19k.bmes.txt', 
+                   SimpleEmbedder(BERT_EMBEDDING_WIDTH),
+                   BMES(),
+                   model_file = 'simple.19k.bmes.bin',
+                   num_epochs = 10)
+    run_experiment(18500, 'gapavg.19k.xe.txt', 
+                   GapAverageEmbedder(BERT_EMBEDDING_WIDTH),
+                   XE(),
+                   model_file = 'gapavg.19k.xe.bin',
                    num_epochs = 10)                   
-    run_experiment(19000, 'wide.19k.txt', 
-                   BertForWordSegmentation(WideEmbedder(BERT_EMBEDDING_WIDTH)),
-                   model_file = 'wide.19k.bin',
-                   num_epochs = 10)                   
-    run_experiment(19000, 'gapavg.19k.txt', 
-                   BertForWordSegmentation(GapAverageEmbedder(BERT_EMBEDDING_WIDTH)),
-                   model_file = 'gapavg.19k.bin',
-                   num_epochs = 10)                   
+    run_experiment(18500, 'gapavg.19k.bmes.txt', 
+                   GapAverageEmbedder(BERT_EMBEDDING_WIDTH),
+                   BMES(),
+                   model_file = 'gapavg.19k.bmes.bin',
+                   num_epochs = 10)     
     """
-    
 
 
     
 if __name__ == '__main__':
     net = main('data/bakeoff/training/pku_training.utf8', 
-               'data/bakeoff/gold/pku_test_gold.utf8',               
+               'pku_dev.utf8',               
                'data/bakeoff/testing/pku_test.utf8')
     
