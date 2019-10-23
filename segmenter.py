@@ -76,24 +76,25 @@ class BMES:
 
 
 
-def segment_sent(model, encoding, sent):
+def segment_sent(model, sent):
     if len(sent) <= 1:
         return sent
     else:
-        flags = model(sent)
+        segmenter = model.segmenter()
+        flags = segmenter(sent)
         tokens = [tok for tok in sent]
         assert len(tokens) == len(flags)
-        return encoding.decode(tokens, flags)
+        return model.encoding.decode(tokens, flags)
        
-def segment_sents(model, encoding, lines):
+def segment_sents(model, lines):
     result = ""
     for sents in lines:
         for sent in sents:
-            result += segment_sent(model, encoding, sent) + "  "
+            result += segment_sent(model, sent) + "  "
         result = result.strip() + "\n"
     return result.strip()
 
-def segment_file(model, encoding, input_file, output_file):
+def segment_file(model, input_file, output_file):
     with open(input_file) as inhandle:
         with open(output_file, 'w') as outhandle:
             lines = read_test_data(inhandle, limit=13)
