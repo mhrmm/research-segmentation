@@ -4,7 +4,7 @@ from util import cudaify, clear_cuda
 from transformers import BertTokenizer, BertModel
 from networks import DropoutClassifier
 from readdata import read_train_data
-from segmenter import segment_file
+from segmenter import segment_file, XE
 
 class Embedder:
 
@@ -81,7 +81,7 @@ class BertForWordSegmentation(torch.nn.Module):
         self.encoder = encoder
         self.tokenizer = BertTokenizer.from_pretrained(bert_model, do_lower_case = False)
         self.model = cudaify(BertModel.from_pretrained(bert_model, output_hidden_states=True))
-        self.classifier = cudaify(DropoutClassifier(self.embedder.embedding_width(), self.encoder.size()))
+        self.classifier = cudaify(DropoutClassifier(self.embedder.embedding_width(), self.encoder.domain_size()))
         
     def forward(self, input_tokens, labels = None):
         bert_tokens = []
@@ -190,20 +190,20 @@ def main(train_file, dev_file, test_file):
                        learning_rate = 0.005):
             
         
-        x_train, y_train = read_train_data(line_stream(train_file, num_sentences))
-        x_dev, y_dev = read_train_data(line_stream(dev_file, num_sentences))
+        x_train, y_train = read_train_data(line_stream(train_file, num_sentences), XE())
+        x_dev, y_dev = read_train_data(line_stream(dev_file, num_sentences), XE())
         net = train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate, 
                     model_file)
         segment_file(net.segmenter(), test_file, text_output_file)
         clear_cuda()
 
     BERT_EMBEDDING_WIDTH = 768
-    run_experiment(500, 'result.txt', 
-                   BertForWordSegmentation(GapEmbedder(BERT_EMBEDDING_WIDTH)),
+    run_experiment(100, 'result.txt', 
+                   BertForWordSegmentation(GapEmbedder(BERT_EMBEDDING_WIDTH), XE()),
                    model_file = None,
                    num_epochs = 10)
     run_experiment(19000, 'gap.19k.txt', 
-                   BertForWordSegmentation(GapEmbedder(BERT_EMBEDDING_WIDTH)),
+                   BertForWordSegmentation(GapEmbedder(BERT_EMBEDDING_WIDTH), XE()),
                    model_file = 'gap.19k.bin',
                    num_epochs = 10)                   
     
