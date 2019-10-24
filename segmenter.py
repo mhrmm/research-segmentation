@@ -97,7 +97,7 @@ def segment_sents(model, lines):
 def segment_file(model, input_file, output_file):
     with open(input_file) as inhandle:
         with open(output_file, 'w') as outhandle:
-            lines = read_test_data(inhandle, limit=13)
+            lines = read_test_data(inhandle)
             outhandle.write(segment_sents(model, lines))
     
 
