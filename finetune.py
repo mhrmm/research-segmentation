@@ -3,75 +3,10 @@ import random
 from util import cudaify, clear_cuda
 from transformers import BertTokenizer, BertModel
 from networks import DropoutClassifier
-from readdata import read_train_data, read_from_testing_data
+from readdata import read_train_data
 from segmenter import segment_file, XE, BMES
-
-class Embedder:
-
-    def __init__(self, base_embedding_width):
-        self.base_embedding_width = base_embedding_width
-
-    def embedding_width(self):
-        raise NotImplementedError("Cannot call a generic Embedder.")
-    
-    def __call__(self, layers, i):
-        raise NotImplementedError("Cannot call a generic Embedder.")
-
-class SimpleEmbedder(Embedder):
-    def __init__(self, base_embedding_width):
-        super().__init__(base_embedding_width)
-
-    def embedding_width(self):
-        return self.base_embedding_width
-
-    def __call__(self, layers, i):
-        means = []
-        for w in range(1):
-            mean = (layers[0][0][i + w] + layers[12][0][i + w]) / 2
-            means.append(mean)
-        return torch.unsqueeze(torch.cat(means, 0), 0)
-
-class GapEmbedder(Embedder):
-    def __init__(self, base_embedding_width):
-        super().__init__(base_embedding_width)
-
-    def embedding_width(self):
-        return 2 * self.base_embedding_width
-
-    def __call__(self, layers, i):
-        means = []
-        for w in range(2):
-            mean = (layers[0][0][i + w] + layers[12][0][i + w]) / 2
-            means.append(mean)
-        result = torch.unsqueeze(torch.cat(means, 0), 0)
-        return result
-
-class GapAverageEmbedder(Embedder):
-    def __init__(self, base_embedding_width):
-        super().__init__(base_embedding_width)
-
-    def embedding_width(self):
-        return self.base_embedding_width
-
-    def __call__(self, layers, i):
-        mean = (layers[0][0][i] + layers[12][0][i] + layers[0][0][i+1] + layers[12][0][i+1]) / 4
-        result = torch.unsqueeze(mean, 0)
-        return result
-
-class WideEmbedder(Embedder):
-    def __init__(self, base_embedding_width):
-        super().__init__(base_embedding_width)
-        
-    def embedding_width(self):
-        return 4 * self.base_embedding_width
-
-    def __call__(self, layers, i):
-        means = []
-        for w in range(-1, 3):
-            mean = (layers[0][0][i + w] + layers[12][0][i + w]) / 2
-            means.append(mean)
-        return torch.unsqueeze(torch.cat(means, 0), 0)
-
+from embed import GapEmbedder
+from embed import SimpleEmbedder, GapAverageEmbedder, WideEmbedder
 
 
 class BertForWordSegmentation(torch.nn.Module):
@@ -116,8 +51,6 @@ class BertForWordSegmentation(torch.nn.Module):
         return segment
                 
     
-
-
 def data_loader(x_list, y_list):
     z = list(zip(x_list, y_list))
     random.shuffle(z)
@@ -125,6 +58,7 @@ def data_loader(x_list, y_list):
 
     for i in range(len(x_tuple)):
         yield x_tuple[i], y_tuple[i]
+
 
 def train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate, 
           save_path):
@@ -164,44 +98,6 @@ def train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate,
     return best_model
 
 
-def segment_test_file(model, test_file, 
-                      output_filename = 'result.txt'):
-    characters = open(test_file).read()   
-    characters = [ch for ch in characters if ch != ' ']
-    x_list = read_from_testing_data(test_file)    
-    output = open(output_filename, "w+")
-    sentence_id = 0
-    token_id = 0
-    character_id = 0
-    for j, tokens in enumerate(x_list):
-        if j % 100 == 0:
-            print('{}/{}'.format(j, len(x_list)))
-        if len(tokens) > 1:
-            z, loss = model(tokens)
-
-        for i, tok in enumerate(tokens):
-            # if this is the last token:
-            if i == len(tokens) - 1:
-                output.write(characters[character_id])
-                output.write("  ")
-                if characters[character_id + 1] == '\n':
-                    output.write("\n")
-                    character_id += 1
-                token_id = 0
-                sentence_id += 1
-                character_id += 1
-            else:
-                output.write(characters[character_id])                
-                if z[i].argmax().item() == 1:
-                    output.write("  ")
-                token_id += 1
-                character_id += 1
-    if character_id < len(characters):
-        output.write(characters[character_id])
-    output.write("  \n")
-    output.close()  
-    
-
 def line_stream(filename, num_lines):
     with open(filename) as inhandle:
         for i in range(num_lines):
@@ -223,17 +119,20 @@ def main(train_file, dev_file, test_file):
         x_dev, y_dev = read_train_data(line_stream(dev_file, num_sentences), encoding)
         net = train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate, 
                     model_file)
-        #segment_file(net, test_file, text_output_file)
-        segment_test_file(net, test_file)
+        segment_file(net, test_file, text_output_file)
         clear_cuda()
 
     BERT_EMBEDDING_WIDTH = 768
-    run_experiment(2000, 'result.txt', 
+    run_experiment(2000, 'gap.2k.xe.txt', 
                    GapEmbedder(BERT_EMBEDDING_WIDTH),
                    XE(),
                    model_file = None,
                    num_epochs = 10)
-    """
+    run_experiment(2000, 'gap.2k.bmes.txt', 
+                   GapEmbedder(BERT_EMBEDDING_WIDTH),
+                   BMES(),
+                   model_file = None,
+                   num_epochs = 10)
     run_experiment(18500, 'gap.19k.xe.txt', 
                    GapEmbedder(BERT_EMBEDDING_WIDTH),
                    XE(),
@@ -274,7 +173,6 @@ def main(train_file, dev_file, test_file):
                    BMES(),
                    model_file = 'gapavg.19k.bmes.bin',
                    num_epochs = 10)     
-    """
 
 
     
