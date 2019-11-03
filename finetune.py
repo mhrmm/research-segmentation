@@ -65,7 +65,8 @@ def train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate,
     best_model = model
     best_acc = 0.0
     
-    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters())#, lr=learning_rate)
+    print("Starting first epoch...")
     for epoch in range(num_epochs):
         train_loader = data_loader(x_train, y_train)
         test_loader = data_loader(x_dev, y_dev)
@@ -128,6 +129,7 @@ def main(train_file, dev_file, test_file):
                    XE(),
                    model_file = None,
                    num_epochs = 10)
+    """
     run_experiment(2000, 'gap.2k.bmes.txt', 
                    GapEmbedder(BERT_EMBEDDING_WIDTH),
                    BMES(),
@@ -173,6 +175,7 @@ def main(train_file, dev_file, test_file):
                    BMES(),
                    model_file = 'gapavg.19k.bmes.bin',
                    num_epochs = 10)     
+    """
 
 
     
