@@ -129,6 +129,17 @@ def main(train_file, dev_file, test_file):
                    XE(),
                    model_file = None,
                    num_epochs = 10)
+    run_experiment(18500, 'gap.19k.bmes.txt', 
+                   GapEmbedder(BERT_EMBEDDING_WIDTH),
+                   BMES(),
+                   model_file = 'gap.19k.bmes.bin',
+                   num_epochs = 10)                   
+    run_experiment(18500, 'gap.19k.bmes.2.txt', 
+                   GapEmbedder(BERT_EMBEDDING_WIDTH),
+                   BMES(),
+                   model_file = 'gap.19k.bmes.2.bin',
+                   num_epochs = 10)                   
+
     """
     run_experiment(2000, 'gap.2k.bmes.txt', 
                    GapEmbedder(BERT_EMBEDDING_WIDTH),
