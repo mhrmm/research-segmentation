@@ -35,8 +35,8 @@ class GapEmbedder(Embedder):
     def __call__(self, layers, i):
         means = []
         for w in range(2):
-            #mean = (layers[0][0][i + w] + layers[12][0][i + w]) / 2
-            mean = layers[12][0][i + w]
+            mean = (layers[0][0][i + w] + layers[12][0][i + w]) / 2
+            #mean = layers[12][0][i + w]
             means.append(mean)
         result = torch.unsqueeze(torch.cat(means, 0), 0)
         return result
