@@ -7,7 +7,7 @@ from readdata import read_train_data
 from segmenter import segment_file, XE, BMES
 from embed import GapEmbedder
 from embed import SimpleEmbedder, GapAverageEmbedder, WideEmbedder
-
+import copy
 
 class BertForWordSegmentation(torch.nn.Module):
     def __init__(self, embedder, encoding, bert_model = 'bert-base-chinese'):
@@ -93,7 +93,7 @@ def train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate,
         if correct_predictions * 1.0 / num_characters > best_acc:
             print("Updating best model.")
             best_acc = correct_predictions * 1.0 / num_characters
-            best_model = model
+            best_model = copy.deepcopy(model)
         clear_cuda()
     if save_path is not None:
         torch.save(best_model, save_path)
