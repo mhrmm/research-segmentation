@@ -10,7 +10,7 @@ from embed import SimpleEmbedder, GapAverageEmbedder, WideEmbedder
 
 
 class BertForWordSegmentation(torch.nn.Module):
-    def __init__(self, embedder, encoding, bert_model = 'bert-base-multilingual-cased'):
+    def __init__(self, embedder, encoding, bert_model = 'bert-base-chinese'):
         super(BertForWordSegmentation, self).__init__()
         self.embedder = embedder
         self.encoding = encoding
@@ -65,7 +65,7 @@ def train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate,
     best_model = model
     best_acc = 0.0
     
-    optimizer = torch.optim.AdamW(model.parameters())#, lr=learning_rate)
+    optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
     print("Starting first epoch...")
     for epoch in range(num_epochs):
         train_loader = data_loader(x_train, y_train)
@@ -91,6 +91,7 @@ def train(x_train, y_train, x_dev, y_dev, model, num_epochs, learning_rate,
                 num_characters += 1
         print('Test Accuracy: %.4f' % (correct_predictions * 1.0 / num_characters))
         if correct_predictions * 1.0 / num_characters > best_acc:
+            print("Updating best model.")
             best_acc = correct_predictions * 1.0 / num_characters
             best_model = model
         clear_cuda()
@@ -124,11 +125,16 @@ def main(train_file, dev_file, test_file):
         clear_cuda()
 
     BERT_EMBEDDING_WIDTH = 768
-    run_experiment(2000, 'gap.2k.xe.txt', 
-                   GapEmbedder(BERT_EMBEDDING_WIDTH),
-                   XE(),
-                   model_file = None,
-                   num_epochs = 10)
+    for trial in range(3):
+        for i in [500, 1000, 2000, 4000, 8000, 16000]:
+            run_experiment(i, 'gap.{}.{}.xe.txt'.format(i, trial), 
+                           GapEmbedder(BERT_EMBEDDING_WIDTH),
+                           XE(),
+                           model_file = 'gap.{}.{}.xe.bin'.format(i, trial),
+                           num_epochs = 10)
+
+
+    """
     run_experiment(18500, 'gap.19k.bmes.txt', 
                    GapEmbedder(BERT_EMBEDDING_WIDTH),
                    BMES(),
@@ -140,7 +146,6 @@ def main(train_file, dev_file, test_file):
                    model_file = 'gap.19k.bmes.2.bin',
                    num_epochs = 10)                   
 
-    """
     run_experiment(2000, 'gap.2k.bmes.txt', 
                    GapEmbedder(BERT_EMBEDDING_WIDTH),
                    BMES(),
